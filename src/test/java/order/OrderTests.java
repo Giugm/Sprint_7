@@ -1,29 +1,25 @@
 package order;
-import io.restassured.http.ContentType;
-import config.RestAssuredConfig;
+
 import io.qameta.allure.Description;
-import io.qameta.allure.Step;
 import io.qameta.allure.junit4.DisplayName;
 import org.junit.After;
-import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
-import static org.hamcrest.Matchers.equalTo;
+
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
-import static config.RestAssuredConfig.baseSpec;
-import static io.restassured.RestAssured.given;
-import static io.restassured.mapper.ObjectMapperType.GSON;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 @RunWith(Parameterized.class)
 public class OrderTests {
 
     private final List<String> color;
-    private Integer track; // хранит номер созданного заказа
+    private Integer track;
+    private final OrderClient orderClient = new OrderClient();
 
     public OrderTests(List<String> color) {
         this.color = color;
@@ -43,12 +39,7 @@ public class OrderTests {
     public void tearDown() {
         if (track != null) {
             System.out.println("Canceling order with track: " + track);
-            given()
-                    .spec(baseSpec)
-                    .contentType(ContentType.JSON)
-                    .body("{\"track\": " + track + "}")
-                    .when()
-                    .put("/orders/cancel")
+            orderClient.cancelOrder(track)
                     .then()
                     .statusCode(200)
                     .body("ok", equalTo(true));
@@ -65,12 +56,7 @@ public class OrderTests {
                 "Saske, come back to Konoha", color
         );
 
-        track = given()
-                .spec(baseSpec)
-                .contentType("application/json")
-                .body(order, GSON)
-                .when()
-                .post("/orders")
+        track = orderClient.createOrder(order)
                 .then()
                 .statusCode(201)
                 .body("track", notNullValue())
@@ -78,3 +64,4 @@ public class OrderTests {
                 .path("track");
     }
 }
+
