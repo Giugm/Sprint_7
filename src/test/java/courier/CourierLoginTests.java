@@ -1,47 +1,41 @@
 package courier;
-import io.qameta.allure.restassured.AllureRestAssured;
-import io.restassured.RestAssured;
-import io.restassured.http.ContentType;
-import io.restassured.response.ValidatableResponse;
+
+import io.qameta.allure.Description;
+import io.qameta.allure.junit4.DisplayName;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-import io.qameta.allure.Description;
-import io.qameta.allure.Step;
-import io.qameta.allure.junit4.DisplayName;
+
+import java.util.UUID;
+
 import static org.hamcrest.Matchers.*;
 
 public class CourierLoginTests {
 
+    private CourierClient courierClient;
+    private String courierLogin;
+    private String courierPassword;
+    private Integer courierId; // id курьера для удаления
+
     @Before
-    @Step("Настройка базового URI и пути для RestAssured")
     public void setUp() {
-        RestAssured.baseURI = "http://qa-scooter.praktikum-services.ru";
-        RestAssured.basePath = "/api/v1";
-        RestAssured.filters(new AllureRestAssured());
+        courierClient = new CourierClient();
+
+        // Создаем уникальные логин и пароль для каждого теста
+        courierLogin = "user_" + UUID.randomUUID();
+        courierPassword = "pass_" + UUID.randomUUID();
+
+        // Создаем курьера с уникальными данными
+        Courier courier = new Courier(courierLogin, courierPassword, "AnyName");
+        courierClient.createCourier(courier)
+                .statusCode(201);
     }
 
-    // Класс для запроса авторизации
-    static class LoginRequest {
-        private String login;
-        private String password;
-
-        public LoginRequest(String login, String password) {
-            this.login = login;
-            this.password = password;
-        }
-
-        public void setLogin(String login) {
-            this.login = login;
-        }
-
-        public void setPassword(String password) {
-            this.password = password;
-        }
-        public String getLogin() {
-            return login;
-        }
-        public String getPassword() {
-            return password;
+    @After
+    public void tearDown() {
+        if (courierId != null) {
+            courierClient.deleteCourier(courierId)
+                    .statusCode(anyOf(is(200), is(204)));
         }
     }
 
@@ -49,31 +43,22 @@ public class CourierLoginTests {
     @DisplayName("Курьер может авторизоваться")
     @Description("Проверка, что курьер может успешно авторизоваться и получить id")
     public void courierCanLogin() {
-        LoginRequest loginRequest = new LoginRequest("ni1njaaa", "42314");
-        RestAssured
-                .given()
-                .contentType(ContentType.JSON)
-                .body(loginRequest)
-                .when()
-                .post("/courier/login")
-                .then()
+        LoginRequest loginRequest = new LoginRequest(courierLogin, courierPassword);
+
+        courierId = courierClient.loginCourier(loginRequest)
                 .statusCode(200)
-                .body("id", notNullValue());
+                .body("id", notNullValue())
+                .extract()
+                .path("id");
     }
 
     @Test
     @DisplayName("Для авторизации нужно передать все обязательные поля")
     @Description("Проверка, что при отсутствии обязательных полей сервер возвращает ошибку")
     public void loginRequiresAllFields() {
-        LoginRequest loginRequest = new LoginRequest(null, "42314");
+        LoginRequest loginRequest = new LoginRequest(null, courierPassword);
 
-        RestAssured
-                .given()
-                .contentType(ContentType.JSON)
-                .body(loginRequest)
-                .when()
-                .post("/courier/login")
-                .then()
+        courierClient.loginCourier(loginRequest)
                 .statusCode(anyOf(is(400), is(404)))
                 .body("message", not(emptyOrNullString()));
     }
@@ -82,32 +67,20 @@ public class CourierLoginTests {
     @DisplayName("Ошибка при неправильном логине или пароле")
     @Description("Проверка, что система возвращает ошибку при неверных данных авторизации")
     public void wrongLoginOrPasswordReturnsError() {
-        LoginRequest loginRequest = new LoginRequest("ni1njaaaa", "42314");
+        LoginRequest loginRequest = new LoginRequest(courierLogin + "wrong", courierPassword);
 
-        RestAssured
-                .given()
-                .contentType(ContentType.JSON)
-                .body(loginRequest)
-                .when()
-                .post("/courier/login")
-                .then()
+        courierClient.loginCourier(loginRequest)
                 .statusCode(404)
                 .body("message", containsString("Учетная запись не найдена"));
     }
 
     @Test
-    @DisplayName("Ошибка при отсутствии обязательного поля")
-    @Description("Проверка, что при отсутствии одного из полей запрос возвращает ошибку")
-    public void missingFieldReturnsError() {
-        LoginRequest loginRequest = new LoginRequest(null, "somePass");
+    @DisplayName("Ошибка при отсутствии обязательного поля — пароль null")
+    @Description("Проверка, что при отсутствии пароля запрос возвращает ошибку")
+    public void missingPasswordReturnsError() {
+        LoginRequest loginRequest = new LoginRequest(courierLogin, "");
 
-        RestAssured
-                .given()
-                .contentType(ContentType.JSON)
-                .body(loginRequest)
-                .when()
-                .post("/courier/login")
-                .then()
+        courierClient.loginCourier(loginRequest)
                 .statusCode(anyOf(is(400), is(404)))
                 .body("message", not(emptyOrNullString()));
     }
@@ -116,15 +89,9 @@ public class CourierLoginTests {
     @DisplayName("Ошибка при авторизации несуществующего пользователя")
     @Description("Проверка, что попытка авторизоваться под несуществующим пользователем возвращает ошибку")
     public void loginNonexistentUserReturnsError() {
-        LoginRequest loginRequest = new LoginRequest("ni1njaaaa", "42314");
+        LoginRequest loginRequest = new LoginRequest("nonexistentUser", "anyPass");
 
-        RestAssured
-                .given()
-                .contentType(ContentType.JSON)
-                .body(loginRequest)
-                .when()
-                .post("/courier/login")
-                .then()
+        courierClient.loginCourier(loginRequest)
                 .statusCode(404)
                 .body("message", containsString("Учетная запись не найдена"));
     }
@@ -133,15 +100,15 @@ public class CourierLoginTests {
     @DisplayName("Успешный запрос возвращает id")
     @Description("Проверка, что успешный запрос авторизации возвращает поле id")
     public void courierCanGetId() {
-        LoginRequest loginRequest = new LoginRequest("ni1njaaa", "42314");
-        RestAssured
-                .given()
-                .contentType(ContentType.JSON)
-                .body(loginRequest)
-                .when()
-                .post("/courier/login")
-                .then()
+        LoginRequest loginRequest = new LoginRequest(courierLogin, courierPassword);
+
+        courierId = courierClient.loginCourier(loginRequest)
                 .statusCode(200)
-                .body("id", notNullValue());
+                .body("id", notNullValue())
+                .extract()
+                .path("id");
     }
 }
+
+
+

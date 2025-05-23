@@ -1,0 +1,41 @@
+package courier;
+
+import config.RestAssuredConfig;
+import io.restassured.response.ValidatableResponse;
+
+import static io.restassured.RestAssured.given;
+
+public class CourierClient {
+
+    private static final String LOGIN_ENDPOINT = "/courier/login";
+    private static final String CREATE_ENDPOINT = "/courier";
+    private static final String DELETE_ENDPOINT = "/courier/{id}";
+
+    public ValidatableResponse createCourier(Courier courier) {
+        return given()
+                .spec(RestAssuredConfig.baseSpec)
+                .body(courier)
+                .when()
+                .post(CREATE_ENDPOINT)
+                .then();
+    }
+
+    public ValidatableResponse loginCourier(LoginRequest loginRequest) {
+        return given()
+                .spec(RestAssuredConfig.baseSpec)
+                .body(loginRequest)
+                .when()
+                .post(LOGIN_ENDPOINT)
+                .then();
+    }
+
+    public ValidatableResponse deleteCourier(int courierId) {
+        return given()
+                .spec(RestAssuredConfig.baseSpec)
+                .pathParam("id", courierId)
+                .when()
+                .delete(DELETE_ENDPOINT)
+                .then();
+    }
+}
+

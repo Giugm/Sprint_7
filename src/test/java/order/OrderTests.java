@@ -1,20 +1,20 @@
 package order;
-
-import io.qameta.allure.restassured.AllureRestAssured;
-import io.restassured.RestAssured;
 import io.restassured.http.ContentType;
+import config.RestAssuredConfig;
+import io.qameta.allure.Description;
+import io.qameta.allure.Step;
+import io.qameta.allure.junit4.DisplayName;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+import static org.hamcrest.Matchers.equalTo;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import io.qameta.allure.Description;
-import io.qameta.allure.Step;
-import io.qameta.allure.junit4.DisplayName;
 
+import static config.RestAssuredConfig.baseSpec;
 import static io.restassured.RestAssured.given;
 import static io.restassured.mapper.ObjectMapperType.GSON;
 import static org.hamcrest.Matchers.notNullValue;
@@ -39,30 +39,25 @@ public class OrderTests {
         });
     }
 
-    @Before
-    public void setUp() {
-        RestAssured.baseURI = "http://qa-scooter.praktikum-services.ru";
-        RestAssured.basePath = "/api/v1";
-        RestAssured.filters(new AllureRestAssured());
+    @After
+    public void tearDown() {
+        if (track != null) {
+            System.out.println("Canceling order with track: " + track);
+            given()
+                    .spec(baseSpec)
+                    .contentType(ContentType.JSON)
+                    .body("{\"track\": " + track + "}")
+                    .when()
+                    .put("/orders/cancel")
+                    .then()
+                    .statusCode(200)
+                    .body("ok", equalTo(true));
+        }
     }
-
-    //@After Тут у меня возникли проблемы с API. Не работает ручка PUT /api/v1/orders/cancel. Точнее даже сам заказ не отображается в списке, если искать через GET /api/v1/orders (новые не добавляются). Не знаю, что с этим делать. Если знаете, можете, пожалуйста написать, может это баг и нужен баг-репорт?
-    //public void tearDown() {
-    //    if (track != null) {
-    //         given()
-    //                 .contentType(ContentType.JSON)
-    //                 .body("{\"track\": \"" + track + "\"}")  // track как строка
-    //                 .when()
-    //                .put("/orders/cancel")
-    //                .then()
-    //                .statusCode(200);
-    //    }
-    //}
 
     @Test
     @DisplayName("Создание заказа с параметризованными цветами")
     @Description("Проверяет, что можно создать заказ с разными вариантами цветов и что тело ответа содержит поле track")
-    @Step("Отправка запроса на создание заказа")
     public void testOrderCreationWithDifferentColors() {
         Order order = new Order(
                 "Naruto", "Uchiha", "Konoha, 142 apt.", "4",
@@ -71,7 +66,8 @@ public class OrderTests {
         );
 
         track = given()
-                .contentType(ContentType.JSON)
+                .spec(baseSpec)
+                .contentType("application/json")
                 .body(order, GSON)
                 .when()
                 .post("/orders")
