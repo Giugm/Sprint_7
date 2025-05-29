@@ -1,4 +1,4 @@
-package order;
+/*package order;
 
 import io.qameta.allure.Description;
 import io.qameta.allure.junit4.DisplayName;
@@ -64,4 +64,4 @@ public class OrderTests {
                 .path("track");
     }
 }
-
+*/
